@@ -370,17 +370,6 @@ export default function App() {
 
           {/* Results Grid */}
           <div className="lg:col-span-8">
-            {tasks.length > 0 && (
-              <div className="flex items-center justify-between mb-6">
-                <div className="flex items-center gap-3">
-                  <h2 className="text-xl font-bold tracking-tight">Queue</h2>
-                  <div className="flex items-center gap-1.5 px-3 py-1 bg-black text-white rounded-full">
-                    <Sparkles className="w-3 h-3" />
-                    <span className="text-[11px] font-bold uppercase tracking-wider">{tasks.length} {tasks.length === 1 ? 'Prompt' : 'Prompts'}</span>
-                  </div>
-                </div>
-              </div>
-            )}
             {tasks.length === 0 ? (
               <div className="h-full min-h-[400px] flex flex-col items-center justify-center border-2 border-dashed border-black/5 rounded-[40px] opacity-30">
                 <ImageIcon className="w-12 h-12 mb-4" />
