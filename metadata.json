@@ -1,0 +1,5 @@
+{
+  "name": "Remix: Bulk Image Generator",
+  "description": "Generate multiple images from a list of prompts using Gemini 2.5 Flash Image and download them all at once.",
+  "requestFramePermissions": []
+}
