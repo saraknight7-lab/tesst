@@ -72,28 +72,39 @@ export default function App() {
   }, [customKey]);
 
   const handleAddPrompts = () => {
-    let newPrompts: string[] = [];
+    let rawSections: string[] = [];
     
-    // Check if the text contains the "Prompt:" keyword
+    // Attempt to split by keywords first if present
     if (promptsText.includes('Prompt:')) {
-      // Use regex to find all content after "Prompt:" until the next numbered section or end of string
-      const regex = /Prompt:\s*([\s\S]*?)(?=\n\s*\d+\.|\n\s*Prompt:|$)/gi;
+      const regex = /Prompt:\s*([\s\S]*?)(?=\s*\n\s*(Prompt:|Note:|$))/gi;
       let match;
       while ((match = regex.exec(promptsText)) !== null) {
-        const p = match[1].trim();
-        if (p) newPrompts.push(p);
+        rawSections.push(match[1].trim());
       }
-    }
-    
-    // Fallback if no prompts were found with the prefix or if it's just a simple list
-    if (newPrompts.length === 0) {
-      newPrompts = promptsText
-        .split('\n')
-        .map(p => p.trim())
-        .filter(p => p.length > 0);
+    } else {
+      // Otherwise split by line
+      rawSections = promptsText.split('\n').map(l => l.trim()).filter(l => l.length > 0);
     }
 
-    const newTasks: GenerationTask[] = newPrompts.map(p => ({
+    const cleanPrompts = rawSections.map(p => {
+      // 1. Remove timestamps: [HH:MM:SS], HH:MM AM/PM, (HH:MM), etc.
+      let cleaned = p.replace(/[\[\(\{\s]*\d{1,2}:\d{2}(:\d{2})?(\s?[APM]{2})?[\]\)\}\s]*/gi, ' ');
+      // 2. Remove date patterns: 2024-04-25
+      cleaned = cleaned.replace(/\d{4}-\d{2}-\d{2}/g, '');
+      // 3. Remove leading numbering/bullets: 1. , 2) , [3], #4, - etc.
+      cleaned = cleaned.replace(/^[\s\.\-\(\[#]*\d+[\.\)\s\-\]]+/, '');
+      // 4. Remove leading symbols/noise
+      cleaned = cleaned.replace(/^[\s\.\-\*\+•]+/, '');
+      // 5. Remove explicit markers
+      cleaned = cleaned.replace(/^(Prompt|Note|Image|Description):\s*/i, '');
+      
+      return cleaned.trim();
+    }).filter(p => {
+      // Filter out items that are too short (likely noise) or just numbers
+      return p.length > 2 && !/^\d+$/.test(p);
+    });
+
+    const newTasks: GenerationTask[] = cleanPrompts.map(p => ({
       id: Math.random().toString(36).substring(7),
       prompt: p,
       status: 'idle',
@@ -103,6 +114,15 @@ export default function App() {
     setTasks(prev => [...prev, ...newTasks]);
     setPromptsText('');
   };
+
+  const currentPasteCount = useMemo(() => {
+    if (!promptsText.trim()) return 0;
+    // Simple line-based detection for the badge
+    if (promptsText.includes('Prompt:')) {
+      return (promptsText.match(/Prompt:/gi) || []).length;
+    }
+    return promptsText.split('\n').filter(l => l.trim().length > 2).length;
+  }, [promptsText]);
 
   const removeTask = (id: string) => {
     setTasks(prev => prev.filter(t => t.id !== id));
@@ -169,7 +189,9 @@ export default function App() {
       const task = successfulTasks[i];
       if (task.imageUrl) {
         const base64Data = task.imageUrl.split(',')[1];
-        const fileName = `image-${i + 1}-${task.prompt.slice(0, 20).replace(/[^a-z0-9]/gi, '_')}.png`;
+        const fileNumber = String(i + 1).padStart(2, '0');
+        const safePrompt = task.prompt.slice(0, 30).replace(/[^a-z0-9]/gi, '_');
+        const fileName = `${fileNumber}_${safePrompt}.png`;
         folder?.file(fileName, base64Data, { base64: true });
       }
     }
@@ -287,11 +309,22 @@ export default function App() {
           {/* Input Section */}
           <div className="lg:col-span-4 space-y-6">
             <div className="bg-white p-6 rounded-3xl shadow-sm border border-black/5">
-              <label className="block text-xs font-bold uppercase tracking-widest opacity-50 mb-4">Add Prompts</label>
+              <div className="flex items-center justify-between mb-4">
+                <label className="block text-xs font-bold uppercase tracking-widest opacity-50">Add Prompts</label>
+                {currentPasteCount > 0 && (
+                  <motion.span 
+                    initial={{ scale: 0.8, opacity: 0 }}
+                    animate={{ scale: 1, opacity: 1 }}
+                    className="text-[10px] bg-black text-white px-2 py-0.5 rounded-full font-bold"
+                  >
+                    {currentPasteCount} prompts detected
+                  </motion.span>
+                )}
+              </div>
               <textarea
                 value={promptsText}
                 onChange={(e) => setPromptsText(e.target.value)}
-                placeholder="Enter prompts (one per line)..."
+                placeholder="Paste lists here (smart filter will remove timestamps and headers)..."
                 className="w-full h-48 p-4 bg-[#f9f9f9] rounded-2xl border-none focus:ring-2 focus:ring-black/5 resize-none text-sm leading-relaxed mb-6"
               />
 
@@ -314,11 +347,11 @@ export default function App() {
 
               <button
                 onClick={handleAddPrompts}
-                disabled={!promptsText.trim()}
-                className="w-full flex items-center justify-center gap-2 bg-[#f0f0f0] hover:bg-[#e5e5e5] text-black px-4 py-3 rounded-xl transition-colors disabled:opacity-50"
+                disabled={!promptsText.trim() || currentPasteCount === 0}
+                className="w-full flex items-center justify-center gap-2 bg-black text-white px-4 py-4 rounded-2xl transition-all disabled:opacity-30 active:scale-95 shadow-lg shadow-black/10 hover:bg-black/90"
               >
                 <Plus className="w-4 h-4" />
-                <span className="font-medium">Add to Queue</span>
+                <span className="font-bold text-sm tracking-tight">Add {currentPasteCount > 0 ? `${currentPasteCount} Items` : 'to Queue'}</span>
               </button>
             </div>
 
@@ -345,7 +378,7 @@ export default function App() {
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <AnimatePresence mode="popLayout">
-                  {tasks.map((task) => (
+                  {tasks.map((task, index) => (
                     <motion.div
                       key={task.id}
                       layout
@@ -354,6 +387,11 @@ export default function App() {
                       exit={{ opacity: 0, scale: 0.9, y: -20 }}
                       className="group relative bg-white rounded-3xl overflow-hidden shadow-sm border border-black/5 aspect-square"
                     >
+                      {/* Order Number Badge */}
+                      <div className="absolute top-3 left-3 z-20 bg-black/80 backdrop-blur-md text-white text-[10px] font-bold px-2 py-1 rounded-lg opacity-100 group-hover:opacity-0 transition-opacity">
+                        #{String(index + 1).padStart(2, '0')}
+                      </div>
+                      
                       {task.status === 'idle' && (
                         <div className="absolute inset-0 flex flex-col items-center justify-center p-6 text-center">
                           <div className="w-12 h-12 rounded-full bg-[#f5f5f5] flex items-center justify-center mb-4">
@@ -403,7 +441,7 @@ export default function App() {
 
                       <button
                         onClick={() => removeTask(task.id)}
-                        className="absolute top-3 left-3 opacity-0 group-hover:opacity-100 transition-opacity bg-white/90 backdrop-blur-md p-1.5 rounded-full shadow-lg hover:text-red-500"
+                        className="absolute top-3 left-3 z-30 opacity-0 group-hover:opacity-100 transition-opacity bg-white/90 backdrop-blur-md p-1.5 rounded-full shadow-lg hover:text-red-500"
                       >
                         <Trash2 className="w-4 h-4" />
                       </button>
