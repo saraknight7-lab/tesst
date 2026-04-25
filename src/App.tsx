@@ -356,13 +356,23 @@ export default function App() {
             </div>
 
             {tasks.length > 0 && (
-              <div className="flex items-center justify-between px-2">
-                <span className="text-xs font-medium opacity-50">{tasks.length} items in queue</span>
+              <div className="flex items-center justify-between px-2 bg-white/50 backdrop-blur-sm p-4 rounded-2xl border border-black/5">
+                <div className="flex flex-col">
+                  <span className="text-[10px] font-bold uppercase tracking-widest opacity-40">Queue Status</span>
+                  <div className="flex items-center gap-3">
+                    <span className="text-sm font-bold">{tasks.length} Total</span>
+                    <span className="w-1 h-1 bg-black/20 rounded-full" />
+                    <span className="text-sm font-bold text-blue-600">{tasks.filter(t => t.status === 'idle').length} Pending</span>
+                    <span className="w-1 h-1 bg-black/20 rounded-full" />
+                    <span className="text-sm font-bold text-green-600">{tasks.filter(t => t.status === 'success').length} Ready</span>
+                  </div>
+                </div>
                 <button 
                   onClick={clearAll}
-                  className="text-xs font-medium text-red-500 hover:underline"
+                  className="p-2 hover:bg-red-50 text-red-500 rounded-lg transition-colors"
+                  title="Clear all"
                 >
-                  Clear all
+                  <Trash2 className="w-4 h-4" />
                 </button>
               </div>
             )}
